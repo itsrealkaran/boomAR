@@ -4,6 +4,7 @@ import { CapsuleCollider, RigidBody, vec3 } from "@react-three/rapier";
 import { isHost } from "playroomkit";
 import { useEffect, useRef, useState } from "react";
 import { CharacterSoldier } from "./CharacterSoldier";
+
 const MOVEMENT_SPEED = 202;
 const FIRE_RATE = 380;
 export const WEAPON_OFFSET = {
@@ -27,8 +28,11 @@ export const CharacterController = ({
   const [animation, setAnimation] = useState("Idle");
   const [weapon, setWeapon] = useState("AK");
   const lastShoot = useRef(0);
-
+  const [keysPressed, setKeysPressed] = useState({});
+  
   const scene = useThree((state) => state.scene);
+  const { viewport } = useThree();
+
   const spawnRandomly = () => {
     const spawns = [];
     for (let i = 0; i < 1000; i++) {
@@ -65,6 +69,31 @@ export const CharacterController = ({
     }
   }, [state.state.health]);
 
+  // Handle keyboard inputs
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      setKeysPressed((prevKeys) => ({
+        ...prevKeys,
+        [event.key.toLowerCase()]: true,
+      }));
+    };
+
+    const handleKeyUp = (event) => {
+      setKeysPressed((prevKeys) => ({
+        ...prevKeys,
+        [event.key.toLowerCase()]: false,
+      }));
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
   useFrame((_, delta) => {
     // CAMERA FOLLOW
     if (controls.current) {
@@ -87,40 +116,67 @@ export const CharacterController = ({
       return;
     }
 
-    // Update player position based on joystick state
-    const angle = joystick.angle();
-    if (joystick.isJoystickPressed() && angle) {
-      setAnimation("Run");
-      character.current.rotation.y = angle;
+    // Handle Joystick movement
+    const joystickAngle = joystick.angle();
+    let moving = false;
 
-      // move character in its own direction
+    if (joystick.isJoystickPressed() && joystickAngle) {
+      setAnimation("Run");
+      character.current.rotation.y = joystickAngle;
+
+      // Move character in its own direction
       const impulse = {
-        x: Math.sin(angle) * MOVEMENT_SPEED * delta,
+        x: Math.sin(joystickAngle) * MOVEMENT_SPEED * delta,
         y: 0,
-        z: Math.cos(angle) * MOVEMENT_SPEED * delta,
+        z: Math.cos(joystickAngle) * MOVEMENT_SPEED * delta,
       };
       rigidbody.current.applyImpulse(impulse, true);
+      moving = true;
     } else {
-      setAnimation("Idle");
+      // Handle keyboard movement
+      const impulse = { x: 0, y: 0, z: 0 };
+      if (keysPressed["w"]) {
+        impulse.z -= MOVEMENT_SPEED * delta;
+        moving = true;
+        character.current.rotation.y = Math.PI;
+      }
+      if (keysPressed["s"]) {
+        impulse.z += MOVEMENT_SPEED * delta;
+        moving = true;
+        character.current.rotation.y = 0;
+      }
+      if (keysPressed["a"]) {
+        impulse.x -= MOVEMENT_SPEED * delta;
+        moving = true;
+        character.current.rotation.y = -Math.PI / 2;
+      }
+      if (keysPressed["d"]) {
+        impulse.x += MOVEMENT_SPEED * delta;
+        moving = true;
+        character.current.rotation.y = Math.PI / 2;
+      }
+
+      if (moving) {
+        setAnimation("Run");
+        rigidbody.current.applyImpulse(impulse, true);
+      } else {
+        setAnimation("Idle");
+      }
     }
 
-    // Check if fire button is pressed
-    if (joystick.isPressed("fire")) {
-      // fire
-      setAnimation(
-        joystick.isJoystickPressed() && angle ? "Run_Shoot" : "Idle_Shoot"
-      );
-      if (isHost()) {
-        if (Date.now() - lastShoot.current > FIRE_RATE) {
-          lastShoot.current = Date.now();
-          const newBullet = {
-            id: state.id + "-" + +new Date(),
-            position: vec3(rigidbody.current.translation()),
-            angle,
-            player: state.id,
-          };
-          onFire(newBullet);
-        }
+    // Check if fire button is pressed via joystick or keyboard space bar
+    if (joystick.isPressed("fire") || keysPressed[" "]) {
+      // Fire
+      setAnimation(moving ? "Run_Shoot" : "Idle_Shoot");
+      if (isHost() && Date.now() - lastShoot.current > FIRE_RATE) {
+        lastShoot.current = Date.now();
+        const newBullet = {
+          id: state.id + "-" + +new Date(),
+          position: vec3(rigidbody.current.translation()),
+          angle: character.current.rotation.y,
+          player: state.id,
+        };
+        onFire(newBullet);
       }
     }
 
@@ -133,6 +189,7 @@ export const CharacterController = ({
       }
     }
   });
+
   const controls = useRef();
   const directionalLight = useRef();
 
@@ -191,14 +248,11 @@ export const CharacterController = ({
           )}
         </group>
         {userPlayer && (
-          // Finally I moved the light to follow the player
-          // This way we won't need to calculate ALL the shadows but only the ones
-          // that are in the camera view
           <directionalLight
             ref={directionalLight}
             position={[25, 18, -25]}
             intensity={0.3}
-            castShadow={!downgradedPerformance} // Disable shadows on low-end devices
+            castShadow={!downgradedPerformance}
             shadow-camera-near={0}
             shadow-camera-far={100}
             shadow-camera-left={-20}
@@ -221,52 +275,21 @@ const PlayerInfo = ({ state }) => {
   const name = state.profile.name;
   return (
     <Billboard position-y={2.5}>
-      <Text position-y={0.36} fontSize={0.4}>
+      <Text position-y={0.36} fontSize={0.18} color="white">
         {name}
-        <meshBasicMaterial color={state.profile.color} />
       </Text>
-      <mesh position-z={-0.1}>
-        <planeGeometry args={[1, 0.2]} />
-        <meshBasicMaterial color="black" transparent opacity={0.5} />
-      </mesh>
-      <mesh scale-x={health / 100} position-x={-0.5 * (1 - health / 100)}>
-        <planeGeometry args={[1, 0.2]} />
-        <meshBasicMaterial color="red" />
-      </mesh>
+      <Text fontSize={0.15} color="red">
+        {`${health} HP`}
+      </Text>
     </Billboard>
   );
 };
 
-const Crosshair = (props) => {
-  return (
-    <group {...props}>
-      <mesh position-z={1}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.9} />
-      </mesh>
-      <mesh position-z={2}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.85} />
-      </mesh>
-      <mesh position-z={3}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.8} />
-      </mesh>
-
-      <mesh position-z={4.5}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.7} transparent />
-      </mesh>
-
-      <mesh position-z={6.5}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.6} transparent />
-      </mesh>
-
-      <mesh position-z={9}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.2} transparent />
-      </mesh>
-    </group>
-  );
-};
+const Crosshair = (props) => (
+  <group {...props}>
+    <mesh castShadow receiveShadow>
+      <sphereGeometry args={[0.04]} />
+      <meshBasicMaterial color={"#000000"} />
+    </mesh>
+  </group>
+);

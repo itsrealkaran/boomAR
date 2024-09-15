@@ -1,7 +1,17 @@
 import { usePlayersList } from "playroomkit";
+import { useEffect } from "react";
 
 export const Leaderboard = () => {
-  const players = usePlayersList(true);
+    const players = usePlayersList(true);
+    
+    useEffect(()=>{
+      players.forEach(player => {
+        
+        console.log(player.state , player.id);
+      });
+    },[players])
+
+  
   return (
     <>
       <div className="fixed top-0 left-0 right-0 p-4 flex z-10 gap-4">
