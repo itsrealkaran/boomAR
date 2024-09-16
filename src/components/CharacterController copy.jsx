@@ -13,7 +13,6 @@ export const WEAPON_OFFSET = {
   z: 0.8,
 };
 
-// Component for managing individual player state and controls
 export const CharacterController = ({
   state,
   joystick,
@@ -30,10 +29,10 @@ export const CharacterController = ({
   const [weapon, setWeapon] = useState("AK");
   const lastShoot = useRef(0);
   const [keysPressed, setKeysPressed] = useState({});
-
-  const scene = useThree((state) => state.scene);
   
-  // Handle player spawning
+  const scene = useThree((state) => state.scene);
+  const { viewport } = useThree();
+
   const spawnRandomly = () => {
     const spawns = [];
     for (let i = 0; i < 1000; i++) {
@@ -54,7 +53,6 @@ export const CharacterController = ({
     }
   }, []);
 
-  // Handle death and health effects
   useEffect(() => {
     if (state.state.dead) {
       const audio = new Audio("/audios/dead.mp3");
@@ -71,10 +69,8 @@ export const CharacterController = ({
     }
   }, [state.state.health]);
 
-  // Handle keyboard input specifically for this player
+  // Handle keyboard inputs
   useEffect(() => {
-    if (!userPlayer) return;
-
     const handleKeyDown = (event) => {
       setKeysPressed((prevKeys) => ({
         ...prevKeys,
@@ -96,7 +92,7 @@ export const CharacterController = ({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [userPlayer]);
+  }, []);
 
   useFrame((_, delta) => {
     // CAMERA FOLLOW
@@ -134,6 +130,19 @@ export const CharacterController = ({
         y: 0,
         z: Math.cos(joystickAngle) * MOVEMENT_SPEED * delta,
       };
+      if (isHost()) {
+        rigidbody.current.applyImpulse(impulse, true);
+      } else {
+        // Manually update position for non-hosts
+        const currentPos = vec3(rigidbody.current.translation());
+        rigidbody.current.setTranslation({
+          x: currentPos.x + impulse.x,
+          y: currentPos.y + impulse.y,
+          z: currentPos.z + impulse.z,
+        });
+      }
+      moving = true;
+  
       rigidbody.current.applyImpulse(impulse, true);
       moving = true;
     } else {
@@ -171,21 +180,18 @@ export const CharacterController = ({
     // Check if fire button is pressed via joystick or keyboard space bar
     if (joystick.isPressed("fire") || keysPressed[" "]) {
       // Fire
-      setAnimation(moving && character.current.rotation.y ? "Run_Shoot" : "Idle_Shoot");
-      if (isHost()) {
-        if (Date.now() - lastShoot.current > FIRE_RATE) {
-          lastShoot.current = Date.now();
-          const newBullet = {
-            id: state.id + "-" + +new Date(),
-            position: vec3(rigidbody.current.translation()),
-            angle: character.current.rotation.y,
-            player: state.id,
-          };
-          onFire(newBullet);
-        }
+      setAnimation(moving ? "Run_Shoot" : "Idle_Shoot");
+      if (isHost() && Date.now() - lastShoot.current > FIRE_RATE) {
+        lastShoot.current = Date.now();
+        const newBullet = {
+          id: state.id + "-" + +new Date(),
+          position: vec3(rigidbody.current.translation()),
+          angle: character.current.rotation.y,
+          player: state.id,
+        };
+        onFire(newBullet);
       }
     }
-    
 
     if (isHost()) {
       state.setState("pos", rigidbody.current.translation());
@@ -282,52 +288,21 @@ const PlayerInfo = ({ state }) => {
   const name = state.profile.name;
   return (
     <Billboard position-y={2.5}>
-      <Text position-y={0.36} fontSize={0.4}>
+      <Text position-y={0.36} fontSize={0.18} color="white">
         {name}
-        <meshBasicMaterial color={state.profile.color} />
       </Text>
-      <mesh position-z={-0.1}>
-        <planeGeometry args={[1, 0.2]} />
-        <meshBasicMaterial color="black" transparent opacity={0.5} />
-      </mesh>
-      <mesh scale-x={health / 100} position-x={-0.5 * (1 - health / 100)}>
-        <planeGeometry args={[1, 0.2]} />
-        <meshBasicMaterial color="red" />
-      </mesh>
+      <Text fontSize={0.15} color="red">
+        {`${health} HP`}
+      </Text>
     </Billboard>
   );
 };
 
-const Crosshair = (props) => {
-  return (
-    <group {...props}>
-      <mesh position-z={1}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.9} />
-      </mesh>
-      <mesh position-z={2}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.85} />
-      </mesh>
-      <mesh position-z={3}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" transparent opacity={0.8} />
-      </mesh>
-
-      <mesh position-z={4.5}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.7} transparent />
-      </mesh>
-
-      <mesh position-z={6.5}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.6} transparent />
-      </mesh>
-
-      <mesh position-z={9}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshBasicMaterial color="black" opacity={0.2} transparent />
-      </mesh>
-    </group>
-  );
-};
+const Crosshair = (props) => (
+  <group {...props}>
+    <mesh castShadow receiveShadow>
+      <sphereGeometry args={[0.04]} />
+      <meshBasicMaterial color={"#000000"} />
+    </mesh>
+  </group>
+);
