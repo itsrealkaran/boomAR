@@ -13,7 +13,7 @@ import { BulletHit } from "./BulletHit";
 import { CharacterController } from "./CharacterController";
 import { Map } from "./Map";
 
-export const Experience = ({ downgradedPerformance = false }) => {
+export const Experience = ({ downgradedPerformance = false, selectedMap}) => {
   const [players, setPlayers] = useState([]);
   const start = async () => {
     // Start the game
@@ -79,7 +79,7 @@ export const Experience = ({ downgradedPerformance = false }) => {
 
   return (
     <>
-      <Map />
+      <Map selectedMap={selectedMap}/>
       {players.map(({ state, joystick }, index) => (
         <CharacterController
           key={state.id}

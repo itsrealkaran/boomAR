@@ -5,9 +5,13 @@ import { Physics } from "@react-three/rapier";
 import { Experience } from "@/components/Experience";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { PerformanceMonitor, SoftShadows } from "@react-three/drei";
-import { Leaderboard } from '@/components/Leaderboard'
-export default function Game() {
+import { Leaderboard } from '@/components/Leaderboard';
+
+export default function Game({ selectedMap }) {  // Destructure selectedMap from props
     const [downgradedPerformance, setDowngradedPerformance] = useState(false);
+
+    // Log the selectedMap to confirm it's passed correctly
+    console.log(selectedMap);
 
     return (
         <div className="h-screen w-screen">
@@ -21,13 +25,14 @@ export default function Game() {
                 <color attach="background" args={["#242424"]} />
                 <SoftShadows size={42} />
                 <PerformanceMonitor
-                    onDecline={(fps) => {
+                    onDecline={() => {
                         setDowngradedPerformance(true);
                     }}
                 />
-                <Suspense>
+                <Suspense fallback={null}>
                     <Physics>
-                        <Experience downgradedPerformance={downgradedPerformance} />
+                        {/* Pass selectedMap as a prop to Experience component if needed */}
+                        <Experience downgradedPerformance={downgradedPerformance} selectedMap={selectedMap} />
                     </Physics>
                 </Suspense>
                 {!downgradedPerformance && (
@@ -37,5 +42,5 @@ export default function Game() {
                 )}
             </Canvas>
         </div>
-    )
+    );
 }
