@@ -56,7 +56,7 @@ const LandingPage = () => {
                   </div>
                 </DrawerContent>
               </Drawer>
-              <Link to='/game'>
+              <Link to='/game/'>
                 <Button className="border border-cyan-300/60 text-cyan-300 text-xl p-7">
                   Enter the Room
                 </Button>
