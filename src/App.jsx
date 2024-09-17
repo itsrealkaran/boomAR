@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ConnectButton, useConnection } from "arweave-wallet-kit";
 import Lodu from "./components/Lodu";
-import Game from './components/game';
+import Game from './components/Game';
 import {
   Drawer,
   DrawerTrigger,
