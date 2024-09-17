@@ -159,9 +159,6 @@ export const CharacterController = ({
         moving = true;
         character.current.rotation.y = Math.PI / 2;
       }
-      if (keysPressed[" "]){
-        
-      }
 
       if (moving) {
         setAnimation("Run");
@@ -172,7 +169,7 @@ export const CharacterController = ({
     }
 
     // Check if fire button is pressed via joystick or keyboard space bar
-    if (joystick.isPressed("fire")) {
+    if (joystick.isPressed("fire") || keysPressed[" "]) {
       // Fire
       setAnimation(moving && character.current.rotation.y ? "Run_Shoot" : "Idle_Shoot");
       if (isHost()) {
